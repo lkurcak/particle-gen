@@ -1,5 +1,5 @@
 import { genId, createDefaultParticle } from './utils.js';
-import { state, setRerender } from './state.js';
+import { state, setRerender, loadState, saveState } from './state.js';
 import { draw, resize } from './renderer.js';
 import { renderTabs } from './ui/tabs.js';
 import { renderLayers } from './ui/layers.js';
@@ -11,6 +11,7 @@ function renderAll() {
   renderLayers();
   renderParams();
   draw();
+  saveState();
 }
 
 setRerender(renderAll);
@@ -47,6 +48,20 @@ document.getElementById('preview-bg-select').onchange = (e) => {
 };
 
 setupExportHandlers();
+
+function syncPreviewBg() {
+  const container = document.getElementById('canvas-container');
+  if (state.previewBg === 'checkerboard') {
+    container.classList.add('checkerboard');
+    container.style.background = '';
+  } else {
+    container.classList.remove('checkerboard');
+    container.style.background = '#000';
+  }
+}
+
+loadState();
+syncPreviewBg();
 
 window.addEventListener('resize', resize);
 requestAnimationFrame(() => {
