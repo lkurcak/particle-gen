@@ -165,13 +165,8 @@ export function draw(overrideBgMode) {
 }
 
 export function resize() {
-  const container = document.getElementById('canvas-container');
-  const dpr = window.devicePixelRatio || 1;
-  const w = container.clientWidth;
-  const h = container.clientHeight;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
+  const size = state.exportSize;
+  canvas.width = size;
+  canvas.height = size;
   draw();
 }

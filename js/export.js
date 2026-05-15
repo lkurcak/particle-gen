@@ -4,8 +4,7 @@ import { genId } from './utils.js';
 
 export function setupExportHandlers() {
   document.getElementById('btn-export-png').onclick = () => {
-    const bg = document.getElementById('export-bg-select').value;
-    const mode = bg === 'transparent' ? 1 : 0;
+    const mode = state.exportBg === 'transparent' ? 1 : 0;
     draw(mode);
     const link = document.createElement('a');
     link.download = 'particle.png';

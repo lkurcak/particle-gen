@@ -34,21 +34,6 @@ document.getElementById('btn-add-layer').onclick = () => {
   renderAll();
 };
 
-document.getElementById('preview-bg-select').onchange = (e) => {
-  state.previewBg = e.target.value;
-  const container = document.getElementById('canvas-container');
-  if (state.previewBg === 'checkerboard') {
-    container.classList.add('checkerboard');
-    container.style.background = '';
-  } else {
-    container.classList.remove('checkerboard');
-    container.style.background = '#000';
-  }
-  draw();
-};
-
-setupExportHandlers();
-
 function syncPreviewBg() {
   const container = document.getElementById('canvas-container');
   if (state.previewBg === 'checkerboard') {
@@ -60,8 +45,35 @@ function syncPreviewBg() {
   }
 }
 
+function syncStaticControls() {
+  document.getElementById('preview-bg-select').value = state.previewBg;
+  document.getElementById('export-bg-select').value = state.exportBg;
+  document.getElementById('export-size-select').value = String(state.exportSize);
+  syncPreviewBg();
+}
+
+document.getElementById('preview-bg-select').onchange = (e) => {
+  state.previewBg = e.target.value;
+  syncPreviewBg();
+  draw();
+  saveState();
+};
+
+document.getElementById('export-bg-select').onchange = (e) => {
+  state.exportBg = e.target.value;
+  saveState();
+};
+
+document.getElementById('export-size-select').onchange = (e) => {
+  state.exportSize = parseInt(e.target.value, 10);
+  resize();
+  saveState();
+};
+
+setupExportHandlers();
+
 loadState();
-syncPreviewBg();
+syncStaticControls();
 
 window.addEventListener('resize', resize);
 requestAnimationFrame(() => {

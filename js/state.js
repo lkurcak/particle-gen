@@ -6,7 +6,9 @@ export const state = {
   particles: [createDefaultParticle(genId(), 'Particle 1')],
   activeParticleId: null,
   selectedLayerId: null,
-  previewBg: 'checkerboard'
+  previewBg: 'checkerboard',
+  exportBg: 'transparent',
+  exportSize: 128
 };
 state.activeParticleId = state.particles[0].id;
 state.selectedLayerId = state.particles[0].layers[0].id;
@@ -42,6 +44,9 @@ export function loadState() {
     state.activeParticleId = activeId;
     state.selectedLayerId = layerId;
     state.previewBg = saved.previewBg === 'black' ? 'black' : 'checkerboard';
+    state.exportBg = saved.exportBg === 'black' ? 'black' : 'transparent';
+    const validSizes = [32, 64, 128, 256, 512];
+    state.exportSize = validSizes.includes(saved.exportSize) ? saved.exportSize : 128;
 
     return true;
   } catch (e) {
