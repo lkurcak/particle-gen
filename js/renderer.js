@@ -62,6 +62,7 @@ function generateFragmentShader(particle) {
   let src = `precision mediump float;
 uniform vec2 u_resolution;
 uniform int u_bgMode;
+uniform int u_previewMode;
 `;
 
   if (needCircle) {
@@ -81,7 +82,12 @@ uniform int u_bgMode;
   src += `
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
-  vec2 p = (uv - 0.5) * 2.0;
+  vec2 p;
+  if (u_previewMode == 1) {
+    p = (uv - 0.5) * 4.0;
+  } else {
+    p = (uv - 0.5) * 2.0;
+  }
   p.x *= u_resolution.x / u_resolution.y;
   float value = 0.0;
 `;
@@ -108,18 +114,23 @@ void main() {
   }
 
   src += `
+  vec4 color;
   int mode = u_bgMode;
   if (mode == 0) {
-    gl_FragColor = vec4(vec3(value), 1.0);
+    color = vec4(vec3(value), 1.0);
   } else {
-    gl_FragColor = vec4(vec3(1.0), value);
+    color = vec4(vec3(1.0), value);
   }
+  if (u_previewMode == 1 && (abs(p.x) > 1.0 || abs(p.y) > 1.0)) {
+    color = mix(color, vec4(1.0, 0.0, 0.0, color.a), 0.3);
+  }
+  gl_FragColor = color;
 }
 `;
   return src;
 }
 
-export function draw(overrideBgMode) {
+export function draw(overrideBgMode, previewMode = true) {
   const particle = state.particles.find(p => p.id === state.activeParticleId);
   if (!particle) return;
 
@@ -151,6 +162,9 @@ export function draw(overrideBgMode) {
   let bgMode = state.previewBg === 'black' ? 0 : 1;
   if (typeof overrideBgMode === 'number') bgMode = overrideBgMode;
   gl.uniform1i(uBg, bgMode);
+
+  const uPreview = gl.getUniformLocation(cachedProgram, 'u_previewMode');
+  gl.uniform1i(uPreview, previewMode ? 1 : 0);
 
   gl.viewport(0, 0, canvas.width, canvas.height);
 
