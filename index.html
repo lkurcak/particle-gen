@@ -105,10 +105,31 @@
     gap: 10px;
     border: 2px solid transparent;
     transition: background 0.1s;
+    will-change: transform;
   }
   .layer-item:hover { background: #3a3a3a; }
   .layer-item.selected { border-color: #4a9eff; background: #3a3a3a; }
-  .layer-item.dragging { opacity: 0.4; }
+  .layer-ghost {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0.95;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    background: #3a3a3a;
+    border: 2px solid #4a9eff;
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .layer-placeholder {
+    border: 2px dashed #555;
+    border-radius: 6px;
+    background: transparent;
+    width: 100%;
+    flex-shrink: 0;
+  }
   .drag-handle {
     cursor: grab;
     color: #888;
@@ -526,7 +547,106 @@ function renderTabs() {
   el.appendChild(addTab);
 }
 
+let isCustomDragging = false;
+let dragState = null;
+
+function onDragMove(e) {
+  if (!dragState) return;
+  const { ghost, placeholder, list, offsetX, offsetY, siblings } = dragState;
+
+  ghost.style.left = (e.clientX - offsetX) + 'px';
+  ghost.style.top = (e.clientY - offsetY) + 'px';
+
+  // Find new insertion index based on mouse Y relative to other items
+  const children = Array.from(list.children).filter(c => c !== placeholder);
+  let newIndex = children.length;
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    const box = child.getBoundingClientRect();
+    const center = box.top + box.height / 2;
+    if (e.clientY < center) {
+      newIndex = i;
+      break;
+    }
+  }
+
+  const currentPlaceholderIndex = Array.from(list.children).indexOf(placeholder);
+  if (newIndex !== currentPlaceholderIndex) {
+    // FLIP: record positions before DOM change
+    const beforeRects = new Map();
+    siblings.forEach(s => beforeRects.set(s, s.getBoundingClientRect()));
+
+    // Move placeholder
+    if (newIndex < children.length) {
+      list.insertBefore(placeholder, children[newIndex]);
+    } else {
+      list.appendChild(placeholder);
+    }
+
+    // FLIP: record positions after DOM change
+    const afterRects = new Map();
+    siblings.forEach(s => afterRects.set(s, s.getBoundingClientRect()));
+
+    // Apply inverted transforms
+    siblings.forEach(s => {
+      const b = beforeRects.get(s);
+      const a = afterRects.get(s);
+      const dy = b.top - a.top;
+      if (dy !== 0) {
+        s.style.transition = 'none';
+        s.style.transform = `translateY(${dy}px)`;
+      } else {
+        s.style.transform = '';
+        s.style.transition = '';
+      }
+    });
+
+    // Force reflow
+    document.body.offsetHeight; // eslint-disable-line
+
+    // Animate to natural position
+    siblings.forEach(s => {
+      s.style.transition = 'transform 0.2s ease';
+      s.style.transform = '';
+    });
+  }
+}
+
+function onDragEnd(e) {
+  if (!dragState) return;
+  const { particle, placeholder, ghost, originalIndex, list, siblings } = dragState;
+
+  // Determine final index from placeholder position
+  const finalIndex = Array.from(list.children).indexOf(placeholder);
+
+  // Cleanup DOM
+  ghost.remove();
+  placeholder.remove();
+  siblings.forEach(s => {
+    s.style.transition = '';
+    s.style.transform = '';
+  });
+
+  // Update state
+  if (finalIndex !== -1 && finalIndex !== originalIndex) {
+    const [moved] = particle.layers.splice(originalIndex, 1);
+    particle.layers.splice(finalIndex, 0, moved);
+  }
+
+  // Keep the moved layer selected
+  const targetLayer = particle.layers[finalIndex !== -1 ? finalIndex : originalIndex];
+  if (targetLayer) state.selectedLayerId = targetLayer.id;
+
+  dragState = null;
+  isCustomDragging = false;
+  window.removeEventListener('mousemove', onDragMove);
+  window.removeEventListener('mouseup', onDragEnd);
+
+  renderAll();
+}
+
 function renderLayers() {
+  if (isCustomDragging) return;
   const particle = getActiveParticle();
   const list = document.getElementById('layers-list');
   list.innerHTML = '';
@@ -538,9 +658,6 @@ function renderLayers() {
   particle.layers.forEach((layer, index) => {
     const item = document.createElement('div');
     item.className = 'layer-item' + (layer.id === state.selectedLayerId ? ' selected' : '');
-    item.draggable = true;
-    item.dataset.index = index;
-
     const handle = document.createElement('span');
     handle.className = 'drag-handle';
     handle.textContent = '☰';
@@ -596,27 +713,46 @@ function renderLayers() {
       renderAll();
     });
 
-    // Drag & Drop
-    item.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', String(index));
-      e.dataTransfer.effectAllowed = 'move';
-      item.classList.add('dragging');
-    });
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
-    });
-    item.addEventListener('dragover', (e) => {
+    // Custom drag
+    handle.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-    item.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-      const to = index;
-      if (from === to || isNaN(from)) return;
-      const [moved] = particle.layers.splice(from, 1);
-      particle.layers.splice(to, 0, moved);
-      renderAll();
+      e.stopPropagation();
+      isCustomDragging = true;
+
+      const list = document.getElementById('layers-list');
+      const rect = item.getBoundingClientRect();
+
+      // placeholder takes the original spot
+      const placeholder = document.createElement('div');
+      placeholder.className = 'layer-placeholder';
+      placeholder.style.height = rect.height + 'px';
+      list.insertBefore(placeholder, item);
+      item.remove();
+
+      // ghost follows mouse
+      const ghost = item.cloneNode(true);
+      ghost.classList.add('layer-ghost');
+      ghost.style.width = rect.width + 'px';
+      ghost.style.left = rect.left + 'px';
+      ghost.style.top = rect.top + 'px';
+      document.body.appendChild(ghost);
+
+      const siblings = Array.from(list.children).filter(c => c !== placeholder);
+
+      dragState = {
+        particle,
+        placeholder,
+        ghost,
+        originalIndex: index,
+        list,
+        offsetX: e.clientX - rect.left,
+        offsetY: e.clientY - rect.top,
+        siblings
+      };
+
+      window.addEventListener('mousemove', onDragMove);
+      window.addEventListener('mouseup', onDragEnd);
     });
 
     list.appendChild(item);
