@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle SDF Generator</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #1a1a1a;
+    color: #e0e0e0;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Tabs */
+  #tabs {
+    display: flex;
+    background: #222;
+    border-bottom: 1px solid #444;
+    padding: 4px 8px 0;
+    gap: 4px;
+    align-items: center;
+  }
+  .tab {
+    padding: 8px 16px;
+    cursor: pointer;
+    background: #333;
+    border-radius: 4px 4px 0 0;
+    font-size: 13px;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab.active { background: #444; font-weight: 600; border-bottom: 2px solid #4a9eff; }
+  .tab:hover { background: #3f3f3f; }
+  .tab-close {
+    background: none; border: none; color: #aaa; cursor: pointer; font-size: 14px; padding: 0; margin: 0;
+    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 2px;
+  }
+  .tab-close:hover { background: #555; color: #fff; }
+  #tab-add { padding: 8px 12px; font-weight: bold; font-size: 16px; line-height: 1; }
+
+  /* Main */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Canvas Area */
+  #canvas-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: #000;
+  }
+  #canvas-container.checkerboard {
+    background-color: #1a1a1a;
+    background-image:
+      linear-gradient(45deg, #222 25%, transparent 25%),
+      linear-gradient(-45deg, #222 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #222 75%),
+      linear-gradient(-45deg, transparent 75%, #222 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  }
+  canvas { display: block; max-width: 100%; max-height: 100%; }
+
+  /* Sidebar */
+  #sidebar {
+    width: 320px;
+    background: #252525;
+    border-left: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #layers-header {
+    padding: 12px;
+    border-bottom: 1px solid #444;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  #layer-controls { display: flex; gap: 6px; align-items: center; }
+  #layers-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .layer-item {
+    background: #333;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 2px solid transparent;
+    transition: background 0.1s;
+  }
+  .layer-item:hover { background: #3a3a3a; }
+  .layer-item.selected { border-color: #4a9eff; background: #3a3a3a; }
+  .layer-item.dragging { opacity: 0.4; }
+  .drag-handle {
+    cursor: grab;
+    color: #888;
+    font-size: 14px;
+    user-select: none;
+  }
+  .drag-handle:active { cursor: grabbing; }
+  .layer-info {
+    flex: 1;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .layer-type { font-weight: 500; color: #fff; }
+  .layer-meta { font-size: 11px; color: #888; }
+  .layer-blend {
+    background: #444;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .layer-visibility {
+    background: none; border: none; color: #888; cursor: pointer; font-size: 14px;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px;
+  }
+  .layer-visibility:hover { background: #444; }
+  .layer-visibility.hidden { color: #555; text-decoration: line-through; }
+
+  /* Params Panel */
+  #params-panel {
+    padding: 12px;
+    border-top: 1px solid #444;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #2a2a2a;
+  }
+  #params-title { font-weight: 600; font-size: 13px; margin-bottom: 10px; color: #ccc; }
+  .param-row { display: flex; align-items: center; margin-bottom: 10px; gap: 8px; }
+  .param-row label { width: 70px; font-size: 12px; color: #aaa; flex-shrink: 0; }
+  .param-row input[type="range"] { flex: 1; cursor: pointer; }
+  .param-row input[type="number"] {
+    width: 60px; background: #333; color: #eee; border: 1px solid #555;
+    padding: 4px; border-radius: 4px; font-size: 12px;
+  }
+  .param-row input[type="number"]:focus { outline: 1px solid #4a9eff; border-color: #4a9eff; }
+
+  /* Export Controls */
+  #export-controls {
+    padding: 12px;
+    border-top: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #252525;
+  }
+  .control-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .control-row label { font-size: 12px; color: #aaa; }
+  select {
+    background: #333; color: #eee; border: 1px solid #555;
+    padding: 4px 6px; border-radius: 4px; font-size: 12px;
+  }
+  button {
+    background: #4a9eff; color: white; border: none;
+    padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;
+    transition: background 0.15s;
+  }
+  button:hover { background: #3a8eef; }
+  button.secondary { background: #444; }
+  button.secondary:hover { background: #555; }
+  button.danger { background: #e74c3c; }
+  button.danger:hover { background: #c0392b; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #222; }
+  ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+  /* Empty state */
+  .empty-state { color: #888; font-size: 12px; font-style: italic; text-align: center; padding: 16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="tabs"></div>
+  <div id="main">
+    <div id="canvas-container" class="checkerboard">
+      <canvas id="glcanvas"></canvas>
+    </div>
+    <div id="sidebar">
+      <div id="layers-header">
+        <span>SDF Layers</span>
+        <div id="layer-controls">
+          <select id="new-layer-type">
+            <option value="circle">Circle</option>
+            <option value="rectangle">Rectangle</option>
+          </select>
+          <button id="btn-add-layer" class="secondary">Add</button>
+        </div>
+      </div>
+      <div id="layers-list"></div>
+      <div id="params-panel">
+        <div id="params-content">
+          <div class="empty-state">Select a layer to edit its parameters</div>
+        </div>
+      </div>
+      <div id="export-controls">
+        <div class="control-row">
+          <label>Preview BG</label>
+          <select id="preview-bg-select">
+            <option value="checkerboard">Checkerboard</option>
+            <option value="black">Black</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>Export BG</label>
+          <select id="export-bg-select">
+            <option value="transparent">Transparent</option>
+            <option value="black">Black</option>
+          </select>
+        </div>
+        <button id="btn-export-png">Export PNG</button>
+        <div class="btn-row">
+          <button id="btn-export-json" class="secondary">Export JSON</button>
+          <button id="btn-import-json" class="secondary">Import JSON</button>
+        </div>
+        <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Utils ---------- */
+function genId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function createDefaultParticle(id, name) {
+  return {
+    id,
+    name,
+    layers: [
+      {
+        id: genId(),
+        type: 'circle',
+        blendMode: 'add',
+        enabled: true,
+        params: { x: 0, y: 0, radius: 0.5, falloff: 0.05 }
+      }
+    ]
+  };
+}
+
+/* ---------- State ---------- */
+const state = {
+  particles: [createDefaultParticle(genId(), 'Particle 1')],
+  activeParticleId: null,
+  selectedLayerId: null,
+  previewBg: 'checkerboard' // 'checkerboard' or 'black'
+};
+state.activeParticleId = state.particles[0].id;
+state.selectedLayerId = state.particles[0].layers[0].id;
+
+/* ---------- WebGL ---------- */
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl', {
+  premultipliedAlpha: false,
+  alpha: true,
+  preserveDrawingBuffer: true // needed for toDataURL reliable capture
+});
+if (!gl) {
+  alert('WebGL is not supported in your browser.');
+}
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+function createShader(type, source) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, source);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(s));
+    console.error(source);
+    gl.deleteShader(s);
+    return null;
+  }
+  return s;
+}
+
+function createProgram(vsSrc, fsSrc) {
+  const vs = createShader(gl.VERTEX_SHADER, vsSrc);
+  const fs = createShader(gl.FRAGMENT_SHADER, fsSrc);
+  if (!vs || !fs) return null;
+  const p = gl.createProgram();
+  gl.attachShader(p, vs);
+  gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error('Program link error:', gl.getProgramInfoLog(p));
+    return null;
+  }
+  return p;
+}
+
+const quadBuf = gl.createBuffer();
+const quadArr = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER, quadArr, gl.STATIC_DRAW);
+
+let cachedProgram = null;
+let cachedFsSource = '';
+
+function generateFragmentShader(particle, exportMode) {
+  const layers = particle.layers.filter(l => l.enabled !== false);
+
+  const needCircle = layers.some(l => l.type === 'circle');
+  const needRect  = layers.some(l => l.type === 'rectangle');
+
+  let src = `precision mediump float;
+uniform vec2 u_resolution;
+uniform int u_bgMode;
+`;
+
+  if (needCircle) {
+    src += `float sdCircle(vec2 p, vec2 c, float r) {
+  return length(p - c) - r;
+}
+`;
+  }
+  if (needRect) {
+    src += `float sdRectangle(vec2 p, vec2 c, vec2 b, float rad) {
+  vec2 d = abs(p - c) - b + rad;
+  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0)) - rad;
+}
+`;
+  }
+
+  src += `
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 p = (uv - 0.5) * 2.0;
+  p.x *= u_resolution.x / u_resolution.y;
+  float value = 0.0;
+`;
+
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    const pr = l.params;
+    const fo = Math.max(0.0001, pr.falloff); // avoid smoothstep divide-by-zero edge case
+    const n = `_${i}`;
+    if (l.type === 'circle') {
+      src += `  float d${n} = sdCircle(p, vec2(${pr.x.toFixed(5)}, ${pr.y.toFixed(5)}), ${pr.radius.toFixed(5)});\n`;
+    } else if (l.type === 'rectangle') {
+      src += `  float d${n} = sdRectangle(p, vec2(${pr.x.toFixed(5)}, ${pr.y.toFixed(5)}), vec2(${pr.width.toFixed(5)}, ${pr.height.toFixed(5)}), ${pr.roundness.toFixed(5)});\n`;
+    }
+    src += `  float m${n} = 1.0 - smoothstep(0.0, ${fo.toFixed(5)}, max(0.0, d${n}));\n`;
+
+    if (l.blendMode === 'add' || l.blendMode === 'union') {
+      src += `  value = max(value, m${n});\n`;
+    } else if (l.blendMode === 'subtract') {
+      src += `  value = max(value - m${n}, 0.0);\n`;
+    } else if (l.blendMode === 'intersect') {
+      src += `  value = min(value, m${n});\n`;
+    }
+  }
+
+  // u_bgMode: 0 = black/grayscale, 1 = transparent/white-alpha
+  // If exportMode is passed, it overrides for the export render.
+  src += `
+  int mode = u_bgMode;
+  if (mode == 0) {
+    gl_FragColor = vec4(vec3(value), 1.0);
+  } else {
+    gl_FragColor = vec4(vec3(1.0), value);
+  }
+}
+`;
+  return src;
+}
+
+function draw(overrideBgMode) {
+  const particle = state.particles.find(p => p.id === state.activeParticleId);
+  if (!particle) return;
+
+  const fsSrc = generateFragmentShader(particle);
+  if (fsSrc !== cachedFsSource) {
+    const prog = createProgram(VS, fsSrc);
+    if (prog) {
+      if (cachedProgram) {
+        // We could delete, but for simplicity just drop reference.
+        // gl.deleteProgram(cachedProgram);
+      }
+      cachedProgram = prog;
+      cachedFsSource = fsSrc;
+    } else {
+      // keep old program on error
+      console.error('Failed to compile new shader');
+      return;
+    }
+  }
+
+  if (!cachedProgram) return;
+
+  gl.useProgram(cachedProgram);
+
+  const aPos = gl.getAttribLocation(cachedProgram, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  const uRes = gl.getUniformLocation(cachedProgram, 'u_resolution');
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+
+  const uBg = gl.getUniformLocation(cachedProgram, 'u_bgMode');
+  let bgMode = state.previewBg === 'black' ? 0 : 1;
+  if (typeof overrideBgMode === 'number') bgMode = overrideBgMode;
+  gl.uniform1i(uBg, bgMode);
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  if (bgMode === 0) {
+    gl.clearColor(0, 0, 0, 1);
+  } else {
+    gl.clearColor(0, 0, 0, 0);
+  }
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function resize() {
+  const container = document.getElementById('canvas-container');
+  const dpr = window.devicePixelRatio || 1;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  draw();
+}
+
+/* ---------- UI Renderers ---------- */
+function getActiveParticle() {
+  return state.particles.find(p => p.id === state.activeParticleId);
+}
+
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  state.particles.forEach(p => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (p.id === state.activeParticleId ? ' active' : '');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = p.name;
+    nameSpan.style.pointerEvents = 'none';
+    tab.appendChild(nameSpan);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'tab-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = 'Close tab';
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (state.particles.length <= 1) {
+        // don't allow closing the last tab; maybe replace with a fresh one
+        return;
+      }
+      const idx = state.particles.findIndex(x => x.id === p.id);
+      state.particles.splice(idx, 1);
+      if (state.activeParticleId === p.id) {
+        const next = state.particles[Math.max(0, idx - 1)];
+        state.activeParticleId = next.id;
+        state.selectedLayerId = next.layers[0]?.id || null;
+      }
+      renderAll();
+    };
+    tab.appendChild(closeBtn);
+
+    tab.onclick = () => {
+      state.activeParticleId = p.id;
+      state.selectedLayerId = p.layers[0]?.id || null;
+      renderAll();
+    };
+
+    el.appendChild(tab);
+  });
+
+  const addTab = document.createElement('div');
+  addTab.className = 'tab';
+  addTab.id = 'tab-add';
+  addTab.textContent = '+';
+  addTab.title = 'New particle';
+  addTab.onclick = () => {
+    const newP = createDefaultParticle(genId(), `Particle ${state.particles.length + 1}`);
+    state.particles.push(newP);
+    state.activeParticleId = newP.id;
+    state.selectedLayerId = newP.layers[0].id;
+    renderAll();
+  };
+  el.appendChild(addTab);
+}
+
+function renderLayers() {
+  const particle = getActiveParticle();
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+  if (!particle || particle.layers.length === 0) {
+    list.innerHTML = '<div class="empty-state">No layers. Add one to start.</div>';
+    return;
+  }
+
+  particle.layers.forEach((layer, index) => {
+    const item = document.createElement('div');
+    item.className = 'layer-item' + (layer.id === state.selectedLayerId ? ' selected' : '');
+    item.draggable = true;
+    item.dataset.index = index;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '☰';
+    handle.title = 'Drag to reorder';
+
+    const info = document.createElement('div');
+    info.className = 'layer-info';
+    const typeDiv = document.createElement('div');
+    typeDiv.className = 'layer-type';
+    typeDiv.textContent = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'layer-meta';
+    metaDiv.textContent = Object.entries(layer.params)
+      .map(([k, v]) => `${k}: ${parseFloat(v).toFixed(3)}`).join(', ');
+    info.appendChild(typeDiv);
+    info.appendChild(metaDiv);
+
+    const blend = document.createElement('select');
+    blend.className = 'layer-blend';
+    ['add', 'subtract', 'intersect'].forEach(mode => {
+      const opt = document.createElement('option');
+      opt.value = mode;
+      opt.textContent = mode;
+      if (layer.blendMode === mode) opt.selected = true;
+      blend.appendChild(opt);
+    });
+    blend.onchange = (e) => {
+      layer.blendMode = e.target.value;
+      renderAll();
+    };
+
+    const visBtn = document.createElement('button');
+    visBtn.className = 'layer-visibility' + (layer.enabled === false ? ' hidden' : '');
+    visBtn.innerHTML = layer.enabled === false ? '&#128065;&#8205;&#128168;' : '&#128065;'; // eye / eye-slash-ish
+    // simpler text/icons
+    visBtn.textContent = layer.enabled === false ? '🚫' : '👁';
+    visBtn.title = layer.enabled === false ? 'Enable layer' : 'Disable layer';
+    visBtn.onclick = (e) => {
+      e.stopPropagation();
+      layer.enabled = layer.enabled === false;
+      renderAll();
+    };
+
+    item.appendChild(handle);
+    item.appendChild(info);
+    item.appendChild(blend);
+    item.appendChild(visBtn);
+
+    // Selection
+    item.addEventListener('click', (e) => {
+      if (e.target.tagName === 'SELECT' || e.target.closest('.layer-visibility')) return;
+      state.selectedLayerId = layer.id;
+      renderAll();
+    });
+
+    // Drag & Drop
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', String(index));
+      e.dataTransfer.effectAllowed = 'move';
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const to = index;
+      if (from === to || isNaN(from)) return;
+      const [moved] = particle.layers.splice(from, 1);
+      particle.layers.splice(to, 0, moved);
+      renderAll();
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function renderParams() {
+  const particle = getActiveParticle();
+  const container = document.getElementById('params-content');
+  container.innerHTML = '';
+
+  if (!particle) {
+    container.innerHTML = '<div class="empty-state">No active particle</div>';
+    return;
+  }
+  const layer = particle.layers.find(l => l.id === state.selectedLayerId);
+  if (!layer) {
+    container.innerHTML = '<div class="empty-state">Select a layer to edit</div>';
+    return;
+  }
+
+  const title = document.createElement('div');
+  title.id = 'params-title';
+  title.textContent = (layer.type.charAt(0).toUpperCase() + layer.type.slice(1)) + ' Parameters';
+  container.appendChild(title);
+
+  const makeRow = (label, key, min, max, step) => {
+    const row = document.createElement('div');
+    row.className = 'param-row';
+
+    const lbl = document.createElement('label');
+    lbl.textContent = label;
+
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.min = min;
+    range.max = max;
+    range.step = step;
+    range.value = layer.params[key];
+
+    const num = document.createElement('input');
+    num.type = 'number';
+    num.min = min;
+    num.max = max;
+    num.step = step;
+    num.value = parseFloat(layer.params[key]).toFixed(4);
+
+    const set = (v) => {
+      const val = parseFloat(v);
+      layer.params[key] = val;
+      range.value = val;
+      num.value = val.toFixed(4);
+      // Only re-render canvas & layers meta text, but full renderAll is cheap enough
+      draw();
+      // Update meta text in layer list without full re-render for performance
+      renderLayers();
+    };
+
+    range.addEventListener('input', (e) => set(e.target.value));
+    num.addEventListener('input', (e) => set(e.target.value));
+
+    row.appendChild(lbl);
+    row.appendChild(range);
+    row.appendChild(num);
+    container.appendChild(row);
+  };
+
+  if (layer.type === 'circle') {
+    makeRow('X', 'x', -2, 2, 0.001);
+    makeRow('Y', 'y', -2, 2, 0.001);
+    makeRow('Radius', 'radius', 0, 2, 0.001);
+    makeRow('Falloff', 'falloff', 0.001, 1, 0.001);
+  } else if (layer.type === 'rectangle') {
+    makeRow('X', 'x', -2, 2, 0.001);
+    makeRow('Y', 'y', -2, 2, 0.001);
+    makeRow('Width', 'width', 0, 2, 0.001);
+    makeRow('Height', 'height', 0, 2, 0.001);
+    makeRow('Roundness', 'roundness', 0, 1, 0.001);
+    makeRow('Falloff', 'falloff', 0.001, 1, 0.001);
+  }
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'danger';
+  delBtn.style.marginTop = '8px';
+  delBtn.style.width = '100%';
+  delBtn.textContent = 'Delete Layer';
+  delBtn.onclick = () => {
+    const idx = particle.layers.findIndex(l => l.id === layer.id);
+    particle.layers.splice(idx, 1);
+    state.selectedLayerId = particle.layers[Math.max(0, idx - 1)]?.id || null;
+    renderAll();
+  };
+  container.appendChild(delBtn);
+}
+
+function renderAll() {
+  renderTabs();
+  renderLayers();
+  renderParams();
+  draw();
+}
+
+/* ---------- Event Wiring ---------- */
+document.getElementById('btn-add-layer').onclick = () => {
+  const particle = getActiveParticle();
+  if (!particle) return;
+  const type = document.getElementById('new-layer-type').value;
+  const newLayer = {
+    id: genId(),
+    type,
+    blendMode: 'add',
+    enabled: true,
+    params: type === 'circle'
+      ? { x: 0, y: 0, radius: 0.5, falloff: 0.05 }
+      : { x: 0, y: 0, width: 0.5, height: 0.5, roundness: 0, falloff: 0.05 }
+  };
+  particle.layers.push(newLayer);
+  state.selectedLayerId = newLayer.id;
+  renderAll();
+};
+
+// Preview BG
+document.getElementById('preview-bg-select').onchange = (e) => {
+  state.previewBg = e.target.value;
+  const container = document.getElementById('canvas-container');
+  if (state.previewBg === 'checkerboard') {
+    container.classList.add('checkerboard');
+    container.style.background = '';
+  } else {
+    container.classList.remove('checkerboard');
+    container.style.background = '#000';
+  }
+  draw();
+};
+
+// Export PNG
+document.getElementById('btn-export-png').onclick = () => {
+  const bg = document.getElementById('export-bg-select').value;
+  const mode = bg === 'transparent' ? 1 : 0;
+  draw(mode); // render with export mode
+  const link = document.createElement('a');
+  link.download = 'particle.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  draw(); // restore preview mode
+};
+
+// Export JSON
+document.getElementById('btn-export-json').onclick = () => {
+  const particle = getActiveParticle();
+  const blob = new Blob([JSON.stringify(particle, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${particle.name}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Import JSON
+document.getElementById('btn-import-json').onclick = () => {
+  document.getElementById('import-file').click();
+};
+document.getElementById('import-file').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (!Array.isArray(imported.layers)) throw new Error('Invalid JSON: missing layers array');
+      imported.id = genId();
+      imported.name = imported.name || 'Imported';
+      // Sanitize layers a bit
+      imported.layers.forEach(l => {
+        if (l.enabled === undefined) l.enabled = true;
+      });
+      state.particles.push(imported);
+      state.activeParticleId = imported.id;
+      state.selectedLayerId = imported.layers[0]?.id || null;
+      renderAll();
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+};
+
+/* ---------- Init ---------- */
+window.addEventListener('resize', resize);
+// initial render after layout settles
+requestAnimationFrame(() => {
+  resize();
+  renderAll();
+});
+</script>
+</body>
+</html>
