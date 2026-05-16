@@ -1,21 +1,15 @@
 import { state, getActiveParticle, rerender } from './state.js';
-import { draw, canvas } from './renderer.js';
+import { exportToDataURL } from './renderer.js';
 import { genId } from './utils.js';
 
 export function setupExportHandlers() {
   document.getElementById('btn-export-png').onclick = () => {
     const mode = state.exportBg === 'transparent' ? 1 : 0;
-    const prevSize = canvas.width;
-    canvas.width = state.exportSize;
-    canvas.height = state.exportSize;
-    draw(mode, false);
+    const url = exportToDataURL(mode);
     const link = document.createElement('a');
     link.download = 'particle.png';
-    link.href = canvas.toDataURL('image/png');
+    link.href = url;
     link.click();
-    canvas.width = prevSize;
-    canvas.height = prevSize;
-    draw();
   };
 
   document.getElementById('btn-export-json').onclick = () => {

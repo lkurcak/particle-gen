@@ -69,8 +69,8 @@ export function renderParams() {
   } else if (layer.type === 'rectangle') {
     makeRow('X', 'x', -2, 2, 0.001);
     makeRow('Y', 'y', -2, 2, 0.001);
-    makeRow('Width', 'width', 0, 2, 0.001);
-    makeRow('Height', 'height', 0, 2, 0.001);
+    makeRow('Half-width', 'width', 0, 2, 0.001);
+    makeRow('Half-height', 'height', 0, 2, 0.001);
     makeRow('Roundness', 'roundness', 0, 1, 0.001);
     makeRow('Falloff', 'falloff', 0.001, 1, 0.001);
   }
