@@ -25,6 +25,19 @@ export function saveState() {
   }
 }
 
+// Migrate old blend mode names to new ones
+function migrateBlendModes(particles) {
+  particles.forEach(p => {
+    if (p.layers) {
+      p.layers.forEach(l => {
+        if (l.blendMode === 'add') {
+          l.blendMode = 'union';
+        }
+      });
+    }
+  });
+}
+
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -32,6 +45,9 @@ export function loadState() {
 
     const saved = JSON.parse(raw);
     if (!Array.isArray(saved.particles) || saved.particles.length === 0) return false;
+
+    // Migrate old blend mode names
+    migrateBlendModes(saved.particles);
 
     // Validate IDs exist
     const validActive = saved.particles.some(p => p.id === saved.activeParticleId);

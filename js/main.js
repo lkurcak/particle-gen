@@ -23,7 +23,7 @@ document.getElementById('btn-add-layer').onclick = () => {
   const newLayer = {
     id: genId(),
     type,
-    blendMode: 'add',
+    blendMode: 'union',
     enabled: true,
     params: type === 'circle'
       ? { x: 0, y: 0, radius: 0.5, falloff: 0.05 }

@@ -119,7 +119,7 @@ export function renderLayers() {
 
     const blend = document.createElement('select');
     blend.className = 'layer-blend';
-    ['add', 'subtract', 'intersect'].forEach(mode => {
+    ['union', 'subtract', 'intersect'].forEach(mode => {
       const opt = document.createElement('option');
       opt.value = mode;
       opt.textContent = mode;
