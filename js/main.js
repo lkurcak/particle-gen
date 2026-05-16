@@ -1,4 +1,4 @@
-import { genId, createDefaultParticle } from './utils.js';
+import { genId } from './utils.js';
 import { state, setRerender, loadState, saveState } from './state.js';
 import { draw, resize } from './renderer.js';
 import { renderTabs } from './ui/tabs.js';
@@ -75,7 +75,6 @@ setupExportHandlers();
 loadState();
 syncStaticControls();
 
-window.addEventListener('resize', resize);
 requestAnimationFrame(() => {
   resize();
   renderAll();
