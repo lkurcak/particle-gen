@@ -5,11 +5,16 @@ import { genId } from './utils.js';
 export function setupExportHandlers() {
   document.getElementById('btn-export-png').onclick = () => {
     const mode = state.exportBg === 'transparent' ? 1 : 0;
+    const prevSize = canvas.width;
+    canvas.width = state.exportSize;
+    canvas.height = state.exportSize;
     draw(mode, false);
     const link = document.createElement('a');
     link.download = 'particle.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+    canvas.width = prevSize;
+    canvas.height = prevSize;
     draw();
   };
 

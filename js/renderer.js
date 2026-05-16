@@ -121,7 +121,7 @@ void main() {
   } else {
     color = vec4(vec3(1.0), value);
   }
-  if (u_previewMode == 1 && (abs(p.x) > 1.0 || abs(p.y) > 1.0)) {
+  if (u_previewMode == 1 && value > 0.0 && (abs(p.x) > 1.0 || abs(p.y) > 1.0)) {
     color = mix(color, vec4(1.0, 0.0, 0.0, color.a), 0.3);
   }
   gl_FragColor = color;
@@ -179,7 +179,7 @@ export function draw(overrideBgMode, previewMode = true) {
 }
 
 export function resize() {
-  const size = state.exportSize;
+  const size = state.exportSize * 2;
   canvas.width = size;
   canvas.height = size;
   draw();
